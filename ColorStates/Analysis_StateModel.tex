@@ -1,0 +1,314 @@
+\documentclass{article}\usepackage{graphicx, color}
+%% maxwidth is the original width if it is less than linewidth
+%% otherwise use linewidth (to make sure the graphics do not exceed the margin)
+\makeatletter
+\def\maxwidth{ %
+  \ifdim\Gin@nat@width>\linewidth
+    \linewidth
+  \else
+    \Gin@nat@width
+  \fi
+}
+\makeatother
+
+\definecolor{fgcolor}{rgb}{0.2, 0.2, 0.2}
+\newcommand{\hlnumber}[1]{\textcolor[rgb]{0,0,0}{#1}}%
+\newcommand{\hlfunctioncall}[1]{\textcolor[rgb]{0.501960784313725,0,0.329411764705882}{\textbf{#1}}}%
+\newcommand{\hlstring}[1]{\textcolor[rgb]{0.6,0.6,1}{#1}}%
+\newcommand{\hlkeyword}[1]{\textcolor[rgb]{0,0,0}{\textbf{#1}}}%
+\newcommand{\hlargument}[1]{\textcolor[rgb]{0.690196078431373,0.250980392156863,0.0196078431372549}{#1}}%
+\newcommand{\hlcomment}[1]{\textcolor[rgb]{0.180392156862745,0.6,0.341176470588235}{#1}}%
+\newcommand{\hlroxygencomment}[1]{\textcolor[rgb]{0.43921568627451,0.47843137254902,0.701960784313725}{#1}}%
+\newcommand{\hlformalargs}[1]{\textcolor[rgb]{0.690196078431373,0.250980392156863,0.0196078431372549}{#1}}%
+\newcommand{\hleqformalargs}[1]{\textcolor[rgb]{0.690196078431373,0.250980392156863,0.0196078431372549}{#1}}%
+\newcommand{\hlassignement}[1]{\textcolor[rgb]{0,0,0}{\textbf{#1}}}%
+\newcommand{\hlpackage}[1]{\textcolor[rgb]{0.588235294117647,0.709803921568627,0.145098039215686}{#1}}%
+\newcommand{\hlslot}[1]{\textit{#1}}%
+\newcommand{\hlsymbol}[1]{\textcolor[rgb]{0,0,0}{#1}}%
+\newcommand{\hlprompt}[1]{\textcolor[rgb]{0.2,0.2,0.2}{#1}}%
+
+\usepackage{framed}
+\makeatletter
+\newenvironment{kframe}{%
+ \def\at@end@of@kframe{}%
+ \ifinner\ifhmode%
+  \def\at@end@of@kframe{\end{minipage}}%
+  \begin{minipage}{\columnwidth}%
+ \fi\fi%
+ \def\FrameCommand##1{\hskip\@totalleftmargin \hskip-\fboxsep
+ \colorbox{shadecolor}{##1}\hskip-\fboxsep
+     % There is no \\@totalrightmargin, so:
+     \hskip-\linewidth \hskip-\@totalleftmargin \hskip\columnwidth}%
+ \MakeFramed {\advance\hsize-\width
+   \@totalleftmargin\z@ \linewidth\hsize
+   \@setminipage}}%
+ {\par\unskip\endMakeFramed%
+ \at@end@of@kframe}
+\makeatother
+
+\definecolor{shadecolor}{rgb}{.97, .97, .97}
+\definecolor{messagecolor}{rgb}{0, 0, 0}
+\definecolor{warningcolor}{rgb}{1, 0, 1}
+\definecolor{errorcolor}{rgb}{1, 0, 0}
+\newenvironment{knitrout}{}{} % an empty environment to be redefined in TeX
+
+\usepackage{alltt}
+\usepackage[sc]{mathpazo}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{2}
+\usepackage{url}
+\usepackage{rotating}
+\usepackage[unicode=true,pdfusetitle,
+ bookmarks=true,bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=2,
+ breaklinks=false,pdfborder={0 0 1},backref=false,colorlinks=false]
+ {hyperref}
+\hypersetup{
+ pdfstartview={XYZ null null 1}}
+\usepackage{breakurl}
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\begin{document}
+
+
+
+
+\author{Ricky Lim}
+\title{Analysis of HMM-state Models}
+\maketitle
+
+\begin{verbatim}
+  Filename: Analysis_StateModel.Rnw 
+  Working directory: /TEMP_DDN/users/gfilion/rlim/H1_ColorChromatin/ColorStates 
+\end{verbatim}
+
+\section{Goal}
+
+\begin{itemize}
+  \item Compare the stability of 4state and 5state-HMM models in the first five random runs
+\end{itemize}
+
+\section{Load datasets}
+
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+LogLik_4state <- \hlfunctioncall{read.delim}(\hlstring{"outputLogLik_4states/loglik_4states.ls"})
+LogLik_5state <- \hlfunctioncall{read.delim}(\hlstring{"outputLogLik_5states/loglik_5states.ls"})
+
+\hlcomment{# get the first 5 runs}
+state4_top5 <- \hlfunctioncall{as.numeric}(LogLik_4state)[1:5]
+state5_top5 <- \hlfunctioncall{as.numeric}(LogLik_5state)[1:5]
+
+box_state <- \hlfunctioncall{rbind}(state4_top5, state5_top5)
+box_state <- \hlfunctioncall{t}(box_state)
+
+\hlcomment{# draw the histograms}
+h <- \hlfunctioncall{hist}(box_state, plot = FALSE)
+
+\hlcomment{# color each bin according to the box_state(4-state or 5-state)}
+latest.ob_4state <- box_state[, 1]
+latest.ob_5state <- box_state[, 2]
+bin_4state <- \hlfunctioncall{cut}(latest.ob_4state, h$breaks)
+bin_5state <- \hlfunctioncall{cut}(latest.ob_5state, h$breaks)
+clr <- \hlfunctioncall{rep}(\hlstring{"white"}, \hlfunctioncall{length}(h$counts))
+clr[bin_4state] <- \hlstring{"green"}
+clr[bin_5state] <- \hlstring{"red"}
+
+\hlcomment{# producing the figure}
+\hlfunctioncall{pdf}(\hlstring{"figs/log_likelihood.pdf"}, useDingbats = FALSE)
+\hlfunctioncall{plot}(h, col = clr, xlab = \hlstring{""}, main = \hlstring{"Profile Log-Likelihood"})
+\hlfunctioncall{legend}(\hlstring{"topright"}, fill = \hlfunctioncall{c}(\hlstring{"green"}, \hlstring{"red"}), \hlfunctioncall{c}(\hlstring{"Four-state HMM"}, \hlstring{"Five-state HMM"}), bg = \hlstring{"transparent"}, 
+    box.lwd = 0, box.col = \hlstring{"transparent"})
+\hlfunctioncall{dev.off}()
+\end{alltt}
+\begin{verbatim}
+## pdf 
+##   2
+\end{verbatim}
+\end{kframe}
+\end{knitrout}
+
+
+\subsection{Comparison}
+\begin{figure}                         
+  \centering
+  \includegraphics[widths=0.5\textwidth]{figs/log_likelihood.pdf}
+\end{figure}        
+
+\section{Compare State Assignment}
+\subsection{State Assignment in Four-state HMM}
+
+% latex table generated in R 2.15.0 by xtable 1.7-0 package
+% Tue Apr 30 17:30:04 2013
+\begin{table}[ht]
+\begin{center}
+\begin{tabular}{rrrrrr}
+  \hline
+ & fit41366702441 & fit41366702570 & fit41366702728 & fit41366702873 & fit41366702987 \\ 
+  \hline
+0 & 130214 & 71342 & 25029 & 805264 & 71369 \\ 
+  1 & 25029 & 25029 & 71354 & 25029 & 805276 \\ 
+  2 & 805296 & 805295 & 130232 & 71359 & 25039 \\ 
+  3 & 71345 & 130218 & 805269 & 130232 & 130200 \\ 
+   \hline
+\end{tabular}
+\caption{Four-state HMM}
+\end{center}
+\end{table}
+% latex table generated in R 2.15.0 by xtable 1.7-0 package
+% Tue Apr 30 17:30:04 2013
+\begin{table}[ht]
+\begin{center}
+\begin{tabular}{rrrr}
+  \hline
+ & fit41366703076 & fit41366703192 & fit41366703253 \\ 
+  \hline
+0 & 189195 & 25029 & 71354 \\ 
+  1 & 33869 & 130232 & 130232 \\ 
+  2 & 773274 & 71359 & 25029 \\ 
+  3 & 35546 & 805264 & 805269 \\ 
+   \hline
+\end{tabular}
+\caption{Four-state HMM}
+\end{center}
+\end{table}
+
+
+
+\pagebreak
+\subsection{State Assignment in Five-state HMM}
+
+% latex table generated in R 2.15.0 by xtable 1.7-0 package
+% Tue Apr 30 17:30:12 2013
+\begin{table}[ht]
+\begin{center}
+\begin{tabular}{rrrrrr}
+  \hline
+ & fit51366732443 & fit51366733163 & fit51366738904 & fit51366739827 & fit51366740470 \\ 
+  \hline
+0 & 58055 & 22846 & 70528 & 33095 & 88321 \\ 
+  1 & 798014 & 798562 & 79293 & 758764 & 33030 \\ 
+  2 & 70762 & 53177 & 797769 & 131594 & 18897 \\ 
+  3 & 26215 & 27718 & 26204 & 18944 & 760016 \\ 
+  4 & 78838 & 129581 & 58090 & 89487 & 131620 \\ 
+   \hline
+\end{tabular}
+\caption{Five-state HMM}
+\end{center}
+\end{table}
+% latex table generated in R 2.15.0 by xtable 1.7-0 package
+% Tue Apr 30 17:30:12 2013
+\begin{table}[ht]
+\begin{center}
+\begin{tabular}{rrrrrr}
+  \hline
+ & fit51366741858 & fit51366741922 & fit51366742221 & fit51366742307 & fit51366742484 \\ 
+  \hline
+0 & 131620 & 760016 & 18899 & 760016 & 88321 \\ 
+  1 & 88321 & 131620 & 88319 & 131620 & 18898 \\ 
+  2 & 18897 & 18897 & 131620 & 88321 & 131620 \\ 
+  3 & 33030 & 33030 & 760016 & 33029 & 760016 \\ 
+  4 & 760016 & 88321 & 33030 & 18898 & 33029 \\ 
+   \hline
+\end{tabular}
+\caption{Five-state HMM}
+\end{center}
+\end{table}
+% latex table generated in R 2.15.0 by xtable 1.7-0 package
+% Tue Apr 30 17:30:12 2013
+\begin{table}[ht]
+\begin{center}
+\begin{tabular}{rrr}
+  \hline
+ & fit51366742656 & fit51366743106 \\ 
+  \hline
+0 & 88321 & 18898 \\ 
+  1 & 33030 & 131620 \\ 
+  2 & 760016 & 760016 \\ 
+  3 & 131620 & 33029 \\ 
+  4 & 18897 & 88321 \\ 
+   \hline
+\end{tabular}
+\caption{Five-state HMM}
+\end{center}
+\end{table}
+
+
+
+\pagebreak
+\subsection{State Assignment Comparison for Top Five}
+% latex table generated in R 2.15.0 by xtable 1.7-0 package
+% Tue Apr 30 17:31:10 2013
+\begin{table}[ht]
+\begin{center}
+\begin{tabular}{rrrrrr}
+  \hline
+ & fit41366702441 & fit41366702570 & fit41366702728 & fit41366702873 & fit41366702987 \\ 
+  \hline
+0 & 130214 & 71342 & 25029 & 805264 & 71369 \\ 
+  1 & 25029 & 25029 & 71354 & 25029 & 805276 \\ 
+  2 & 805296 & 805295 & 130232 & 71359 & 25039 \\ 
+  3 & 71345 & 130218 & 805269 & 130232 & 130200 \\ 
+   \hline
+\end{tabular}
+\end{center}
+\end{table}
+% latex table generated in R 2.15.0 by xtable 1.7-0 package
+% Tue Apr 30 17:31:10 2013
+\begin{table}[ht]
+\begin{center}
+\begin{tabular}{rrrrrr}
+  \hline
+ & fit51366732443 & fit51366733163 & fit51366738904 & fit51366739827 & fit51366740470 \\ 
+  \hline
+0 & 58055 & 22846 & 70528 & 33095 & 88321 \\ 
+  1 & 798014 & 798562 & 79293 & 758764 & 33030 \\ 
+  2 & 70762 & 53177 & 797769 & 131594 & 18897 \\ 
+  3 & 26215 & 27718 & 26204 & 18944 & 760016 \\ 
+  4 & 78838 & 129581 & 58090 & 89487 & 131620 \\ 
+   \hline
+\end{tabular}
+\end{center}
+\end{table}
+
+
+
+Figure above (Profile Log-Likelihood) indicates that five-state model yields higher log-likelihood values than four-state model although these values vary over the course of random runs. This variation is reflected by the state assignment of the five-state. As shown in tables above, the number of each state assignment in five-state model reflects fluctuations over different random runs. These, altogether, suggest that five-state HMM model produces less-stable state assignment. For this reason, we selected four-state HMM model that yields more stable state assignment in segmenting H1-hESC genome.
+
+
+\pagebreak
+\section{Metainfo}
+\begin{knitrout}
+\definecolor{shadecolor}{rgb}{0.969, 0.969, 0.969}\color{fgcolor}\begin{kframe}
+\begin{alltt}
+\hlfunctioncall{sessionInfo}()
+\end{alltt}
+\begin{verbatim}
+## R version 2.15.0 (2012-03-30)
+## Platform: x86_64-unknown-linux-gnu (64-bit)
+## 
+## locale:
+## [1] C
+## 
+## attached base packages:
+## [1] stats     graphics  grDevices datasets  utils     methods   base     
+## 
+## other attached packages:
+## [1] codetools_0.2-8   knitr_1.2         xtable_1.7-0      vimcom_0.9-8     
+## [5] setwidth_1.0-3    cacheSweave_0.6-1 stashR_0.3-5      filehash_2.2-1   
+## 
+## loaded via a namespace (and not attached):
+## [1] digest_0.5.2   evaluate_0.4.3 formatR_0.7    plyr_1.7.1     stringr_0.6   
+## [6] tools_2.15.0
+\end{verbatim}
+\end{kframe}
+\end{knitrout}
+
+
+
+
+
+\end{document}
+
