@@ -1,0 +1,121 @@
+\documentclass{article}
+\usepackage[sc]{mathpazo}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{verbose,tmargin=2.5cm,bmargin=2.5cm,lmargin=2.5cm,rmargin=2.5cm}
+\setcounter{secnumdepth}{2}
+\setcounter{tocdepth}{2}
+\usepackage{url}
+\usepackage[unicode=true,pdfusetitle,
+ bookmarks=true,bookmarksnumbered=true,bookmarksopen=true,bookmarksopenlevel=2,
+ breaklinks=false,pdfborder={0 0 1},backref=false,colorlinks=false]
+ {hyperref}
+\hypersetup{
+ pdfstartview={XYZ null null 1}}
+\usepackage{breakurl}
+\begin{document}
+
+<<setup, include=FALSE, cache=FALSE>>=
+# set global chunk options
+# for figures
+opts_chunk$set(fig.path='figs/', fig.align='center', fig.show='hold',dev='CairoPDF', out.width='.4\\linewidth')
+# replacing "=" into "->" to make it R thing
+options(replace.assign=TRUE,width=90)
+# caching chunks
+opts_chunk$set(cache.extra = R.version,cache.path='cache/')
+opts_chunk$set(cache.extra = rand_seed)
+@
+
+\author{Ricky Lim}
+\title{GO Enrichment for each Color State}
+\maketitle
+
+\begin{verbatim}
+  Filename: GO_analysis.Rnw 
+  Working directory: \Sexpr{getwd()} 
+\end{verbatim}
+
+\section{Get GO-associated Ensembl ID}
+Get all GOIDs terms associated with the Ensembl IDs. These Ensembl IDs were obtained from RNAseq experiments. The output file was the tab-delimited file that contains col1:EnsembldID col2:GOID. This file was used as input to obtain all the GOslimID (run by G.F using his python scripts). The GOslimID database is from AMIGO(20130509)  
+
+<<GO-association, cache=TRUE, eval=FALSE>>=
+#library for mapping using ensembl database
+library(biomaRt)
+ensembl = useMart("ensembl",dataset="hsapiens_gene_ensembl")
+#input data containing all the gene_ids from TSSs that are associated with a color domain
+#this data set were obtained by 
+colorAll_Id <- read.delim('input/geneID', header=F, sep='\ ')
+all_id <- colorAll_Id$V1
+all_goIDs = getBM(attributes=c('ensembl_gene_id', 'go_id'), filters='ensembl_gene_id', values=all_id, mart=ensembl)
+head(all_goIDs)
+write.table(all_goIDs, 'output/all_goIDs.txt',quote=FALSE, row.names=F, col.names=F, sep='\t')
+@
+
+\section{GO Coverage (GO slim) in Each Color}
+
+\begin{verbatim}
+
+# the expressedGeneID is the subset of the geneID with npIDR < 0.001, 
+# check /users/gfilion/rlim/H1_ColorChromatin/H1_RNAseq/RNAseqAnalysis.Rnw
+# assign a gene to a color based on the major color covers in that gene
+./getGeneMajorityColorAssign.py input/expressedGeneID > output/Color_ExpressedGO_MajorityRule_GF20130505.txt 
+# parse a gene that has multiple IDs to have a consistent two cols tab-delimited file
+# e.g ENS89089, ENS8990 RED into
+# ENS89089 RED
+# ENS8990 RED
+./parseCommonColorGenes.py output/Color_ExpressedGO_MajorityRule_GF20130505.txt > tmp
+# rename it again
+mv tmp output/Color_ExpressedGO_MajorityRule_GF20130505.txt 
+
+
+\end{verbatim}
+
+<<GOSlim, cache=TRUE, eval=FALSE>>=
+go_slim <- read.delim('output/color_go_GF20130505.txt', header=F)
+head(go_slim)
+dim(go_slim)
+rownames(go_slim) <- go_slim$V1
+go_slim <- go_slim[,2:5]
+colnames(go_slim) <- c('Red', 'Pink', 'Yellow', 'Black')
+
+all_goIDs <- read.delim('input/all_goIDs_complete.txt', header=F)
+head(all_goIDs)
+colnames(all_goIDs) <- c("GeneID", "GO")
+dim(all_goIDs)
+
+color_geneIDs <- read.delim('output/uniqueColor_uniqueGeneID.txt', header=F)
+head(color_geneIDs)
+colnames(color_geneIDs) <- c("GeneID", "Color")
+dim(color_geneIDs)
+table(color_geneIDs$Color)
+
+# intersect the all_goIDs and color_geneIDs to map the geneIDs that are associated with GO_id
+color_goIDs <- merge(all_goIDs, color_geneIDs, by= c("GeneID", "GeneID"))
+head(color_goIDs)
+tail(color_goIDs)
+dim(color_goIDs)
+
+total_slim <- table(color_goIDs$Color)
+total_slim
+total_slim <- total_slim[c(3,2,4,1)]
+
+go_slim['Totals', ] <- total_slim
+tail(go_slim)
+go_slim$row.sum <- rowSums(go_slim)
+
+@
+
+\section{Metainfo}
+<<>>=
+sessionInfo()
+@
+
+<<knitIt, cache=TRUE, echo=FALSE, error=FALSE, results='hide', message=FALSE, warning=FALSE>>=
+library(knitr)
+knit("GO_analysis.Rnw" ) # compile to tex
+purl("GO_analysis.Rnw", documentation = 0) # extract R code only
+knit2pdf("GO_analysis.Rnw")
+@
+
+\end{document}
+
