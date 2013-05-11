@@ -57,53 +57,180 @@ write.table(all_goIDs, 'output/all_goIDs.txt',quote=FALSE, row.names=F, col.name
 
 # the expressedGeneID is the subset of the geneID with npIDR < 0.001, 
 # check /users/gfilion/rlim/H1_ColorChromatin/H1_RNAseq/RNAseqAnalysis.Rnw
+# get the intersection
+bedtools intersect -a input_colorDomain/NoHeader_states_hESC.txt 
+-b output_GOid/expressedgeneID.txt -wb | 
+awk '{print $8"\t"$4}' > output_GOid/expressedGeneID.txt
 # assign a gene to a color based on the major color covers in that gene
-./getGeneMajorityColorAssign.py input/expressedGeneID > output/Color_ExpressedGO_MajorityRule_GF20130505.txt 
+./getGeneMajorityColorAssign.py input/expressedGeneID >output/majority_ExpressedColorEnsembl.txt 
+
 # parse a gene that has multiple IDs to have a consistent two cols tab-delimited file
 # e.g ENS89089, ENS8990 RED into
 # ENS89089 RED
 # ENS8990 RED
-./parseCommonColorGenes.py output/Color_ExpressedGO_MajorityRule_GF20130505.txt > tmp
+./parseCommonColorGenes.py output/majority_ExpressedColorEnsembl.txt > tmp
+
 # rename it again
-mv tmp output/Color_ExpressedGO_MajorityRule_GF20130505.txt 
+mv tmp output/majority_ExpressedColorEnsembl.txt 
+
+# transform it as py dict
+sed 's/^/"/' output/majority_ExpressedColorEnsembl.txt | sed 's/\t/\":"/' | sed 's/$/",/' > d_uniqueExpressedColorMajority.py
+# put the name of the dict as d_uniqueExpressedColorMajority.py
+
+# get the assignment of colors to each GO_ID
+./get_GOExpressedColorMajority.py > output/Color_ExpressedGO_MajorityRule_GF20130505.txt 
+
+# get the background genes (all the expressed genes associated with colors)
+[rlim@maple GO_analysis]$ ./getBackgroundExpressedColorGOSlim_MajorityRule.py
+red   pink  yellow  black
+5799  990   1164    1043  
+
+# #get the mapping from GOID to GOTERM, e.g GO:0030705  cytoskeleton-dependent intracellular transport
+./getGOTermMap.py input/human_go_GF20130509.json > input/GOtermMapTable.txt 
 
 
 \end{verbatim}
 
-<<GOSlim, cache=TRUE, eval=FALSE>>=
-go_slim <- read.delim('output/color_go_GF20130505.txt', header=F)
-head(go_slim)
-dim(go_slim)
-rownames(go_slim) <- go_slim$V1
-go_slim <- go_slim[,2:5]
-colnames(go_slim) <- c('Red', 'Pink', 'Yellow', 'Black')
+<<ExpressedGOSlim, cache=TRUE, eval=FALSE>>=
+ColorGO_slim <- read.delim('output/Color_ExpressedGO_MajorityRule_GF20130505.txt', header=F)
+head(ColorGO_slim)
+rownames(ColorGO_slim) <- ColorGO_slim$V1
+ColorGO_slim <- ColorGO_slim[,2:5]
+colnames(ColorGO_slim) <- c('Red', 'Pink', 'Yellow', 'Black')
 
-all_goIDs <- read.delim('input/all_goIDs_complete.txt', header=F)
-head(all_goIDs)
-colnames(all_goIDs) <- c("GeneID", "GO")
-dim(all_goIDs)
-
-color_geneIDs <- read.delim('output/uniqueColor_uniqueGeneID.txt', header=F)
-head(color_geneIDs)
-colnames(color_geneIDs) <- c("GeneID", "Color")
-dim(color_geneIDs)
-table(color_geneIDs$Color)
-
-# intersect the all_goIDs and color_geneIDs to map the geneIDs that are associated with GO_id
-color_goIDs <- merge(all_goIDs, color_geneIDs, by= c("GeneID", "GeneID"))
-head(color_goIDs)
-tail(color_goIDs)
-dim(color_goIDs)
-
-total_slim <- table(color_goIDs$Color)
-total_slim
-total_slim <- total_slim[c(3,2,4,1)]
-
-go_slim['Totals', ] <- total_slim
-tail(go_slim)
-go_slim$row.sum <- rowSums(go_slim)
+# add the backgound genes associated with colors 
+backgroundGO_Color <- c(5799, 990, 1164, 1043) 
+ColorGO_slim['Totals', ] <- backgroundGO_Color
+tail(ColorGO_slim)
+ColorGO_slim$row.sum <- rowSums(ColorGO_slim)
 
 @
+
+\section{HyperGeomTest}
+Test for the enrichment of the GOIDs for each color. The null hypothesis is no enrichment. Selection of subsets of enriched GOIDs is based on the multiple testing correction, BH at the FDR at 0.001. 
+
+<<testHyper, cache=TRUE, eval=FALSE>>=
+source('GO-compute-hyper-pvals.R')
+
+# select the GO-terms < 0.001 FDR
+get_TOPGO <- function(GO_table, threshold){
+  #bilateral: - for depletion and + for enrichment
+  testHyperGO <- GO.pvals(GO_table, "bilateral")
+  adj_testHyperGO <- apply(testHyperGO, 2, 
+                           function(x) p.adjust(abs(x), method="BH"))
+  row_index <- unique(which(adj_testHyperGO < threshold, arr.ind=TRUE)[,1])
+  TOP_p <- adj_testHyperGO[row_index,]
+  TOP_go <- GO_table[row_index,]
+  list_o <- list("TOP_p"= TOP_p,
+                 "TOP_go"= TOP_go)
+  return (list_o)
+}
+
+# get the selected GO-terms with its associated adj_p values
+TOP_GO <- get_TOPGO(ColorGO_slim, 0.001)
+
+@
+
+\section{GO-Enrichment}
+Enrichment is computed as the ratio over the background and normalized as probabilty with sum (rowsum) to one.
+<<GO-enrich, cache=TRUE, eval=FALSE>>=
+TOP_GOgene <- TOP_GO$TOP_go
+head(TOP_GOgene)
+
+# obs/exp
+ratTOP_GOgene <- apply(TOP_GOgene[, 1:4],1,  function(x) x/backgroundGO_Color)
+ratTOP_GOgene <- t(ratTOP_GOgene)
+# normalize to one
+NormTOP_GOgene <- sweep(ratTOP_GOgene, 1, rowSums(ratTOP_GOgene), FUN="/")
+@
+
+\section{GOEnrichRepresentation}
+
+\begin{verbatim}
+# get the binary matrix for gene-go association
+# 1: there is an association
+# 0: no association
+./getGeneGOBinary.py > input/GeneGOBinary.txt
+
+\end{verbatim}
+
+<<GORepresentation, cache=TRUE, eval=FALSE>>=
+
+# loading's PCA plots for gene-go associations
+GeneGoBinary <- read.table('input/GeneGOBinary.txt',
+                           header=TRUE)
+GeneGoBinary <- as.matrix(t(GeneGoBinary))
+head(GeneGoBinary)
+colnames(GeneGoBinary) <- GeneGoBinary["GO_ID",]
+GeneGoBinary <- GeneGoBinary[-nrow(GeneGoBinary),]
+# make it a numeric matrix
+class(GeneGoBinary) <- "numeric"
+
+# general PCA representation for gene-go associations
+pca_GeneGo <- prcomp(GeneGoBinary, scale.=T)
+pdf('test2.pdf')
+plot(pca_GeneGo$rotation[,1:2],
+     cex=log(colSums(GeneGoBinary) ))
+dev.off()
+
+# PCA for only enriched GO
+pca_GeneGORotation <- pca_GeneGo$rotation
+head(pca_GeneGORotation)
+dim(pca_GeneGORotation)
+rownames(pca_GeneGORotation)
+
+NormTOP_GOgene <- sweep(ratTOP_GOgene, 1, rowSums(ratTOP_GOgene), FUN="/")
+head(NormTOP_GOgene)
+rownames(NormTOP_GOgene)
+
+Enriched_pcaGeneGO <- pca_GeneGORotation[rownames(NormTOP_GOgene),1:2]
+dim(Enriched_pcaGeneGO)
+head(Enriched_pcaGeneGO)
+rownames(NormTOP_GOgene)
+
+get_enrichGOColor <- function(enrichTable){
+  ratios <- vector()
+  colors_max <- vector()
+  for (i in 1: nrow(enrichTable)){
+    col_max <- which.max(enrichTable[i,])
+    colors_max[i] <- colnames(enrichTable)[col_max]
+    ratios[i] <- enrichTable[i, col_max]
+  }
+  list_o <- list("ratios"=ratios,
+                 "colors"=colors_max)
+  return (list_o)
+}
+
+max_GOCOLOR <- get_enrichGOColor(NormTOP_GOgene)
+Enriched_pcaGeneGO <- as.data.frame(Enriched_pcaGeneGO)
+Enriched_pcaGeneGO$color <- max_GOCOLOR$colors
+Enriched_pcaGeneGO$ratio <- round((max_GOCOLOR$ratios)*10)
+head(Enriched_pcaGeneGO)
+
+head(GeneGoBinary)
+size_enrichGO <- log(colSums(GeneGoBinary[,rownames(NormTOP_GOgene)]))
+
+factor(Enriched_pcaGeneGO$color)
+
+library(ggplot2)
+p <- ggplot(Enriched_pcaGeneGO, aes(PC1, PC2))
+p <- p + geom_point(aes(colour=factor(color), 
+                   size = size_enrichGO,
+                   ))
+p + scale_colour_manual(values=c('black', 'deeppink2',
+                                 'red', 'gold2'))+
+scale_size(range = c(3, 15)) + 
+theme(legend.position="none")
+
+ggsave('test3.pdf')
+
+
+
+
+@
+
+
+
 
 \section{Metainfo}
 <<>>=
